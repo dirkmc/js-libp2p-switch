@@ -29,8 +29,7 @@
   },
   "homepage": "https://github.com/libp2p/js-libp2p-switch",
   "pre-push": [
-    "lint",
-    "test"
+    "lint"
   ],
   "engines": {
     "node": ">=6.0.0",
