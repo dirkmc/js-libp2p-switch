@@ -13,6 +13,7 @@ const secio = require('libp2p-secio')
 const PeerBook = require('peer-book')
 const identify = require('libp2p-identify')
 const lp = require('pull-length-prefixed')
+const sinon = require('sinon')
 
 const utils = require('./utils')
 const createInfos = utils.createInfos
@@ -61,8 +62,7 @@ describe('Identify', () => {
     ], done)
   }))
 
-  after(function (done) {
-    this.timeout(3 * 1000)
+  after((done) => {
     parallel([
       (cb) => switchA.stop(cb),
       (cb) => switchB.stop(cb),
@@ -71,6 +71,7 @@ describe('Identify', () => {
   })
 
   afterEach(function (done) {
+    sinon.restore()
     // Hangup everything
     parallel([
       (cb) => switchA.hangUp(switchB._peerInfo, cb),
@@ -100,7 +101,7 @@ describe('Identify', () => {
   })
 
   it('should require crypto and identify to have the same peerId', (done) => {
-    identify.listener = (conn) => {
+    const stub = sinon.stub(identify, 'listener').callsFake((conn) => {
       conn.getObservedAddrs((err, observedAddrs) => {
         if (err) { return }
         observedAddrs = observedAddrs[0]
@@ -122,7 +123,7 @@ describe('Identify', () => {
           conn
         )
       })
-    }
+    })
 
     switchA.handle('/id-test/1.0.0', (protocol, conn) => pull(conn, conn))
     switchB.dial(switchA._peerInfo, '/id-test/1.0.0', (err, conn) => {
@@ -132,6 +133,10 @@ describe('Identify', () => {
         conn,
         pull.collect((err, values) => {
           expect(err).to.exist()
+          expect(stub.callCount).to.eql(1)
+          if (values.length > 0) {
+            console.log('has values?', values[0].toString())
+          }
           expect(values).to.have.length(0)
           done()
         })
