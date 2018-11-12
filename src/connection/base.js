@@ -11,6 +11,21 @@ class BaseConnection extends EventEmitter {
     this.switch = _switch
     this.ourPeerInfo = this.switch._peerInfo
     this.log = debug(`libp2p:conn:${name}`)
+    this.log.error = debug(`libp2p:conn:${name}:error`)
+  }
+
+  /**
+   * Override EventEmitter.emit to conditionally emit error
+   * events if there is a listener, otherwise log it.
+   * @param {*} eventName
+   * @param  {...any} args
+   */
+  emit (eventName, ...args) {
+    if (eventName === 'error' && !this._events.error) {
+      this.log.error(...args)
+    } else {
+      super.emit(eventName, ...args)
+    }
   }
 
   /**

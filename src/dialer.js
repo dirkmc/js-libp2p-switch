@@ -62,7 +62,10 @@ function dial (_switch, returnFSM) {
         peerInfo,
         muxer: _switch.muxedConns[b58Id] || null
       })
-      connection.once('error', (err) => callback(err))
+      connection.once('error', (err) => {
+        connection.close()
+        callback(err)
+      })
       connection.once('connected', () => connection.protect())
       connection.once('private', () => connection.encrypt())
       connection.once('encrypted', () => connection.upgrade())

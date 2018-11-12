@@ -72,6 +72,16 @@ class IncomingConnectionFSM extends BaseConnection {
   }
 
   /**
+   * Puts the state into its disconnecting flow
+   *
+   * @returns {void}
+   */
+  close () {
+    this.log(`closing connection to ${this.theirB58Id}`)
+    this._state('disconnect')
+  }
+
+  /**
    * Attempts to encrypt `this.conn` with the Switch's crypto.
    *
    * @private

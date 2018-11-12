@@ -5,6 +5,7 @@ const multistream = require('multistream-select')
 const waterfall = require('async/waterfall')
 const debug = require('debug')
 const log = debug('libp2p:switch:conn-manager')
+log.error = debug('libp2p:switch:conn-manager:error')
 const once = require('once')
 const setImmediate = require('async/setImmediate')
 const ConnectionFSM = require('../connection')
@@ -90,11 +91,16 @@ class ConnectionManager {
             }
             const b58Str = peerInfo.id.toB58String()
 
-            this.switch.muxedConns[b58Str] = new ConnectionFSM({
+            const connection = new ConnectionFSM({
               _switch: this.switch,
               peerInfo,
               muxer: muxedConn
             })
+            connection.once('error', (err) => {
+              log.error(err)
+              connection.close()
+            })
+            this.switch.muxedConns[b58Str] = connection
 
             if (peerInfo.multiaddrs.size > 0) {
               // with incomming conn and through identify, going to pick one
