@@ -161,18 +161,29 @@ class Switch extends EventEmitter {
   }
 
   /**
-   * If a muxed Connection exists for the given peer, it will be closed
-   * and its reference on the Switch will be removed.
+   * If a muxed Connection exists for the given peer (optionally of the given
+   * connection type: Incoming / Outgoing), it will be closed and its reference
+   * on the Switch will be removed.
    *
    * @param {PeerInfo|Multiaddr|PeerId} peer
+   * @param {ConnectionType} connectionType Optional
    * @param {function()} callback
    * @returns {void}
    */
-  hangUp (peer, callback) {
+  hangUp (peer, connectionType, callback) {
+    if (typeof connectionType === 'function') {
+      callback = connectionType
+      connectionType = null
+    }
+
     const peerInfo = getPeerInfo(peer, this._peerBook)
     const key = peerInfo.id.toB58String()
     const conns = [...this.connection.getAllById(key)]
     each(conns, (conn, cb) => {
+      if (connectionType && conn.type !== connectionType) {
+        return setImmediate(cb)
+      }
+
       conn.once('close', cb)
       conn.close()
     }, callback)
@@ -262,3 +273,4 @@ class Switch extends EventEmitter {
 
 module.exports = Switch
 module.exports.errors = Errors
+module.exports.ConnectionType = require('./connection').ConnectionType

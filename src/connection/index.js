@@ -10,12 +10,22 @@ const observeConnection = require('../observe-connection')
 const Errors = require('../errors')
 
 /**
+ * ConnectionType indicates whether the connection is incoming or outgoing
+ * @readonly
+ * @enum {string}
+ */
+const ConnectionType = {
+  Incoming: 'Incoming',
+  Outgoing: 'Outgoing'
+}
+
+/**
  * @typedef {Object} ConnectionOptions
  * @property {Switch} _switch Our switch instance
  * @property {PeerInfo} peerInfo The PeerInfo of the peer to dial
  * @property {Muxer} muxer Optional - A muxed connection
  * @property {Connection} conn Optional - The base connection
- * @property {string} type Optional - identify the connection as incoming or outgoing. Defaults to out.
+ * @property {ConnectionType} type Optional - identify the connection as Incoming or Outgoing. Defaults to Outgoing.
  */
 
 /**
@@ -30,7 +40,7 @@ class ConnectionFSM extends BaseConnection {
    * @param {ConnectionOptions} param0
    * @constructor
    */
-  constructor ({ _switch, peerInfo, muxer, conn, type = 'out' }) {
+  constructor ({ _switch, peerInfo, muxer, conn, type = ConnectionType.Outgoing }) {
     super({
       _switch,
       name: `${type}:${_switch._peerInfo.id.toB58String().slice(0, 8)}`
@@ -41,6 +51,8 @@ class ConnectionFSM extends BaseConnection {
 
     this.conn = conn // The base connection
     this.muxer = muxer // The upgraded/muxed connection
+
+    this._type = type
 
     let startState = 'DISCONNECTED'
     if (this.muxer) {
@@ -93,8 +105,7 @@ class ConnectionFSM extends BaseConnection {
         disconnect: 'DISCONNECTING'
       },
       DISCONNECTING: { // Shutting down the connection
-        done: 'DISCONNECTED',
-        disconnect: 'DISCONNECTING'
+        done: 'DISCONNECTED'
       },
       ABORTED: { }, // A severe event occurred
       ERRORED: { // An error occurred, but future dials may be allowed
@@ -276,12 +287,12 @@ class ConnectionFSM extends BaseConnection {
     if (this.conn) {
       this.conn.source(true, () => {
         this._state('done')
-        this.switch.emit('peer-mux-closed', this.theirPeerInfo)
+        this.switch.emit('peer-mux-closed', this.theirPeerInfo, { type: this._type })
         delete this.conn
       })
     } else {
       this._state('done')
-      this.switch.emit('peer-mux-closed', this.theirPeerInfo)
+      this.switch.emit('peer-mux-closed', this.theirPeerInfo, { type: this._type })
     }
   }
 
@@ -375,7 +386,7 @@ class ConnectionFSM extends BaseConnection {
             this.switch.protocolMuxer(null)(conn)
           })
 
-          this.switch.emit('peer-mux-established', this.theirPeerInfo)
+          this.switch.emit('peer-mux-established', this.theirPeerInfo, { type: this._type })
 
           this._didUpgrade(null)
         })
@@ -447,7 +458,13 @@ class ConnectionFSM extends BaseConnection {
     this.emit('error', Errors.INVALID_STATE_TRANSITION(err))
     this.log(err)
   }
+
+  get type () {
+    return this._type
+  }
 }
+
+ConnectionFSM.ConnectionType = ConnectionType
 
 module.exports = withIs(ConnectionFSM, {
   className: 'ConnectionFSM',

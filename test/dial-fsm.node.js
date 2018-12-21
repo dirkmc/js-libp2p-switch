@@ -169,6 +169,100 @@ describe('dialFSM', () => {
     })
   })
 
+  it('parallel dials to one another can disconnect only outgoing on hangup', function (done) {
+    this.timeout(10e3)
+
+    switchA.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })
+    switchB.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })
+
+    // 2 close checks (outgoing) and 1 hangup check
+    expect(3).checks(() => {
+      switchA.removeAllListeners('peer-mux-closed')
+      switchB.removeAllListeners('peer-mux-closed')
+
+      expect(switchA.connection.getAll()).to.have.length(1)
+      expect(switchB.connection.getAll()).to.have.length(1)
+
+      // Hangup remaining connections
+      switchA.hangUp(switchB._peerInfo, done)
+    })
+
+    switchA.on('peer-mux-closed', (peerInfo, meta) => {
+      expect(peerInfo.id.toB58String()).to.eql(switchB._peerInfo.id.toB58String()).mark()
+      expect(meta.type).to.eql(Switch.ConnectionType.Outgoing)
+    })
+    switchB.on('peer-mux-closed', (peerInfo, meta) => {
+      expect(peerInfo.id.toB58String()).to.eql(switchA._peerInfo.id.toB58String()).mark()
+      expect(meta.type).to.eql(Switch.ConnectionType.Incoming)
+    })
+
+    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0', () => {
+      // Both should have 1 incoming / 1 outgoing connection
+      expect(switchA.connection.getAll()).to.have.length(2)
+      expect(switchB.connection.getAll()).to.have.length(2)
+
+      // Hangup Outbound only and verify the connections are closed
+      switchA.hangUp(switchB._peerInfo, Switch.ConnectionType.Outgoing, (err) => {
+        expect(err).to.not.exist().mark()
+      })
+    })
+
+    // Hold the dial from A, until switch B is done dialing to ensure
+    // we have both incoming and outgoing connections
+    conn._state.on('DIALING:enter', (cb) => {
+      switchB.dialFSM(switchA._peerInfo, '/parallel/1.0.0', () => {
+        cb()
+      })
+    })
+  })
+
+  it('parallel dials to one another can disconnect only incoming on hangup', function (done) {
+    this.timeout(10e3)
+
+    switchA.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })
+    switchB.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })
+
+    // 2 close checks (incoming) and 1 hangup check
+    expect(3).checks(() => {
+      switchA.removeAllListeners('peer-mux-closed')
+      switchB.removeAllListeners('peer-mux-closed')
+
+      expect(switchA.connection.getAll()).to.have.length(1)
+      expect(switchB.connection.getAll()).to.have.length(1)
+
+      // Hangup remaining connections
+      switchA.hangUp(switchB._peerInfo, done)
+    })
+
+    switchA.on('peer-mux-closed', (peerInfo, meta) => {
+      expect(peerInfo.id.toB58String()).to.eql(switchB._peerInfo.id.toB58String()).mark()
+      expect(meta.type).to.eql(Switch.ConnectionType.Incoming)
+    })
+    switchB.on('peer-mux-closed', (peerInfo, meta) => {
+      expect(peerInfo.id.toB58String()).to.eql(switchA._peerInfo.id.toB58String()).mark()
+      expect(meta.type).to.eql(Switch.ConnectionType.Outgoing)
+    })
+
+    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0', () => {
+      // Both should have 1 incoming / 1 outgoing connection
+      expect(switchA.connection.getAll()).to.have.length(2)
+      expect(switchB.connection.getAll()).to.have.length(2)
+
+      // Hangup Inbound only and verify the connections are closed
+      switchA.hangUp(switchB._peerInfo, Switch.ConnectionType.Incoming, (err) => {
+        expect(err).to.not.exist().mark()
+      })
+    })
+
+    // Hold the dial from A, until switch B is done dialing to ensure
+    // we have both incoming and outgoing connections
+    conn._state.on('DIALING:enter', (cb) => {
+      switchB.dialFSM(switchA._peerInfo, '/parallel/1.0.0', () => {
+        cb()
+      })
+    })
+  })
+
   it('parallel dials to one another should disconnect on stop', (done) => {
     switchA.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })
     switchB.handle('/parallel/1.0.0', (_, conn) => { pull(conn, conn) })

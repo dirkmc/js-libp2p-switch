@@ -53,8 +53,7 @@ function dial (_switch, returnFSM) {
     const b58Id = peerInfo.id.toB58String()
 
     log(`dialing to ${b58Id.slice(0, 8)} with protocol ${protocol || 'unknown'}`)
-
-    let connection = _switch.connection.getOne(b58Id)
+    let connection = _switch.connection.getOne(b58Id, ConnectionFSM.ConnectionType.Outgoing)
 
     if (!ConnectionFSM.isConnectionFSM(connection)) {
       connection = new ConnectionFSM({

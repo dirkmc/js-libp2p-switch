@@ -57,12 +57,13 @@ class ConnectionManager {
    * Gets a connection associated with the given peer
    * @private
    * @param {string} peerId The peers id
+   * @param {ConnectionType} type Optional Incoming / Outgoing
    * @returns {ConnectionFSM|null} The found connection or null
    */
-  getOne (peerId) {
+  getOne (peerId, type = null) {
     if (this.connections[peerId]) {
       // TODO: Maybe select the best?
-      return this.connections[peerId][0]
+      return this.connections[peerId].find(conn => !type || conn.type === type)
     }
     return null
   }
@@ -171,18 +172,17 @@ class ConnectionManager {
               return log('identify not successful')
             }
             const b58Str = peerInfo.id.toB58String()
-
             const connection = new ConnectionFSM({
               _switch: this.switch,
               peerInfo,
               muxer: muxedConn,
               conn: conn,
-              type: 'inc'
+              type: ConnectionFSM.ConnectionType.Incoming
             })
             this.switch.connection.add(connection)
 
             if (peerInfo.multiaddrs.size > 0) {
-              // with incomming conn and through identify, going to pick one
+              // with incoming conn and through identify, going to pick one
               // of the available multiaddrs from the other peer as the one
               // I'm connected to as we really can't be sure at the moment
               // TODO add this consideration to the connection abstraction!
@@ -198,7 +198,7 @@ class ConnectionManager {
               connection.close()
             })
 
-            this.switch.emit('peer-mux-established', peerInfo)
+            this.switch.emit('peer-mux-established', peerInfo, { type: ConnectionFSM.ConnectionType.Incoming })
           })
         })
       }

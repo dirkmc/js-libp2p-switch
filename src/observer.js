@@ -18,12 +18,12 @@ module.exports = (swtch) => {
     outgoing: observe('out')
   })
 
-  swtch.on('peer-mux-established', (peerInfo) => {
-    observer.emit('peer:connected', peerInfo.id.toB58String())
+  swtch.on('peer-mux-established', (peerInfo, meta) => {
+    observer.emit('peer:connected', peerInfo.id.toB58String(), meta)
   })
 
-  swtch.on('peer-mux-closed', (peerInfo) => {
-    observer.emit('peer:closed', peerInfo.id.toB58String())
+  swtch.on('peer-mux-closed', (peerInfo, meta) => {
+    observer.emit('peer:closed', peerInfo.id.toB58String(), meta)
   })
 
   return observer

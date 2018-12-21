@@ -105,29 +105,54 @@ describe('Switch (everything all together)', () => {
     switchE.connection.reuse()
   })
 
-  it('warm up from A to B on tcp to tcp+ws', function (done) {
+  it('establish connection from A to B on tcp to tcp+ws', function (done) {
     this.timeout(10 * 1000)
     parallel([
-      (cb) => switchB.once('peer-mux-established', (pi) => {
+      (cb) => switchB.once('peer-mux-established', (pi, meta) => {
         expect(pi.id.toB58String()).to.equal(switchA._peerInfo.id.toB58String())
+        expect(meta.type).to.equal(Switch.ConnectionType.Incoming)
         cb()
       }),
-      (cb) => switchA.once('peer-mux-established', (pi) => {
+      (cb) => switchA.once('peer-mux-established', (pi, meta) => {
         expect(pi.id.toB58String()).to.equal(switchB._peerInfo.id.toB58String())
+        expect(meta.type).to.equal(Switch.ConnectionType.Outgoing)
         cb()
       }),
       (cb) => switchA.dial(switchB._peerInfo, (err) => {
         expect(err).to.not.exist()
-        expect(switchA.connection.getAll()).to.have.length(1)
         cb()
       })
-    ], done)
+    ], (err) => {
+      if (err) return done(err)
+
+      expect(switchA.connection.getAll()).to.have.length(1)
+      expect(switchB.connection.getAll()).to.have.length(1)
+      done()
+    })
   })
 
-  it('warm up a warmed up, from B to A', (done) => {
-    switchB.dial(switchA._peerInfo, (err) => {
-      expect(err).to.not.exist()
-      expect(switchA.connection.getAll()).to.have.length(1)
+  it('establish connection in opposite direction, from B to A', function (done) {
+    this.timeout(10 * 1000)
+    parallel([
+      (cb) => switchA.once('peer-mux-established', (pi, meta) => {
+        expect(pi.id.toB58String()).to.equal(switchB._peerInfo.id.toB58String())
+        expect(meta.type).to.equal(Switch.ConnectionType.Incoming)
+        cb()
+      }),
+      (cb) => switchB.once('peer-mux-established', (pi, meta) => {
+        expect(pi.id.toB58String()).to.equal(switchA._peerInfo.id.toB58String())
+        expect(meta.type).to.equal(Switch.ConnectionType.Outgoing)
+        cb()
+      }),
+      (cb) => switchB.dial(switchA._peerInfo, (err) => {
+        expect(err).to.not.exist()
+        cb()
+      })
+    ], (err) => {
+      if (err) return done(err)
+
+      expect(switchA.connection.getAll()).to.have.length(2)
+      expect(switchB.connection.getAll()).to.have.length(2)
       done()
     })
   })
@@ -137,7 +162,7 @@ describe('Switch (everything all together)', () => {
 
     switchA.dial(switchB._peerInfo, '/anona/1.0.0', (err, conn) => {
       expect(err).to.not.exist()
-      expect(switchA.connection.getAll()).to.have.length(1)
+      expect(switchA.connection.getAll()).to.have.length(2)
       tryEcho(conn, done)
     })
   })
@@ -169,7 +194,7 @@ describe('Switch (everything all together)', () => {
 
     const conn = switchA.dial(switchB._peerInfo, '/grapes/1.0.0', (err, conn) => {
       expect(err).to.not.exist()
-      expect(switchA.connection.getAll()).to.have.length(1)
+      expect(switchA.connection.getAll()).to.have.length(2)
     })
 
     tryEcho(conn, done)
@@ -202,9 +227,9 @@ describe('Switch (everything all together)', () => {
         check()
       })
 
-      expect(switchA.connection.getAll()).to.have.length(2)
-      expect(switchC._peerInfo.isConnected).to.exist()
-      expect(switchA._peerInfo.isConnected).to.exist()
+      expect(switchA.connection.getAll()).to.have.length(3)
+      expect(switchC._peerInfo.isConnected()).to.exist()
+      expect(switchA._peerInfo.isConnected()).to.exist()
 
       tryEcho(conn, check)
     })
@@ -212,19 +237,23 @@ describe('Switch (everything all together)', () => {
 
   it('hangUp', (done) => {
     let count = 0
-    const ready = () => ++count === 3 ? done() : null
+    const ready = () => ++count === 5 ? complete() : null
+    const complete = () => {
+      switchA.removeListener('peer-mux-closed', ready)
+      switchB.removeListener('peer-mux-closed', ready)
 
-    switchB.once('peer-mux-closed', (peerInfo) => {
       expect(switchB.connection.getAll()).to.have.length(0)
       expect(switchB._peerInfo.isConnected()).to.not.exist()
-      ready()
-    })
-
-    switchA.once('peer-mux-closed', (peerInfo) => {
+      // Switch A will still have a connection to Switch C
       expect(switchA.connection.getAll()).to.have.length(1)
       expect(switchA._peerInfo.isConnected()).to.not.exist()
-      ready()
-    })
+      done()
+    }
+
+    // Each of these should fire twice: once for the outgoing connection and
+    // once for the incoming connection, so there should be four events
+    switchA.on('peer-mux-closed', ready)
+    switchB.on('peer-mux-closed', ready)
 
     switchA.hangUp(switchB._peerInfo, (err) => {
       expect(err).to.not.exist()
