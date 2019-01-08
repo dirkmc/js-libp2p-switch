@@ -196,7 +196,12 @@ describe('dialFSM', () => {
       expect(meta.type).to.eql(Switch.ConnectionType.Incoming)
     })
 
-    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0', () => {
+    // Dial from A -> B and wait for connections to be established in both
+    // directions
+    awaitEvents([
+      [switchA, 'peer-mux-established', 2],
+      [switchB, 'peer-mux-established', 2]
+    ], () => {
       // Both should have 1 incoming / 1 outgoing connection
       expect(switchA.connection.getAll()).to.have.length(2)
       expect(switchB.connection.getAll()).to.have.length(2)
@@ -206,6 +211,7 @@ describe('dialFSM', () => {
         expect(err).to.not.exist().mark()
       })
     })
+    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0')
 
     // Hold the dial from A, until switch B is done dialing to ensure
     // we have both incoming and outgoing connections
@@ -243,7 +249,12 @@ describe('dialFSM', () => {
       expect(meta.type).to.eql(Switch.ConnectionType.Outgoing)
     })
 
-    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0', () => {
+    // Dial from A -> B and wait for connections to be established in both
+    // directions
+    awaitEvents([
+      [switchA, 'peer-mux-established', 2],
+      [switchB, 'peer-mux-established', 2]
+    ], () => {
       // Both should have 1 incoming / 1 outgoing connection
       expect(switchA.connection.getAll()).to.have.length(2)
       expect(switchB.connection.getAll()).to.have.length(2)
@@ -253,6 +264,7 @@ describe('dialFSM', () => {
         expect(err).to.not.exist().mark()
       })
     })
+    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0')
 
     // Hold the dial from A, until switch B is done dialing to ensure
     // we have both incoming and outgoing connections
@@ -281,12 +293,18 @@ describe('dialFSM', () => {
       expect(peerInfo.id.toB58String()).to.eql(switchA._peerInfo.id.toB58String()).mark()
     })
 
-    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0', () => {
+    // Dial from A -> B and wait for connections to be established in both
+    // directions
+    awaitEvents([
+      [switchA, 'peer-mux-established', 2],
+      [switchB, 'peer-mux-established', 2]
+    ], () => {
       // Hangup and verify the connections are closed
       switchA.stop((err) => {
         expect(err).to.not.exist().mark()
       })
     })
+    const conn = switchA.dialFSM(switchB._peerInfo, '/parallel/1.0.0')
 
     // Hold the dial from A, until switch B is done dialing to ensure
     // we have both incoming and outgoing connections
@@ -297,3 +315,19 @@ describe('dialFSM', () => {
     })
   })
 })
+
+function awaitEvents (defs, cb) {
+  let completeCount = 0
+  const checkComplete = () => ++completeCount === defs.length && cb()
+
+  for (const [emitter, event, count] of defs) {
+    let i = 0
+    const check = () => {
+      if (++i === count) {
+        emitter.removeListener(event, check)
+        checkComplete()
+      }
+    }
+    emitter.on(event, check)
+  }
+}
