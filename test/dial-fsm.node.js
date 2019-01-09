@@ -198,7 +198,7 @@ describe('dialFSM', () => {
 
     // Dial from A -> B and wait for connections to be established in both
     // directions
-    awaitEvents([
+    utils.awaitEvents([
       [switchA, 'peer-mux-established', 2],
       [switchB, 'peer-mux-established', 2]
     ], () => {
@@ -251,7 +251,7 @@ describe('dialFSM', () => {
 
     // Dial from A -> B and wait for connections to be established in both
     // directions
-    awaitEvents([
+    utils.awaitEvents([
       [switchA, 'peer-mux-established', 2],
       [switchB, 'peer-mux-established', 2]
     ], () => {
@@ -295,7 +295,7 @@ describe('dialFSM', () => {
 
     // Dial from A -> B and wait for connections to be established in both
     // directions
-    awaitEvents([
+    utils.awaitEvents([
       [switchA, 'peer-mux-established', 2],
       [switchB, 'peer-mux-established', 2]
     ], () => {
@@ -315,19 +315,3 @@ describe('dialFSM', () => {
     })
   })
 })
-
-function awaitEvents (defs, cb) {
-  let completeCount = 0
-  const checkComplete = () => ++completeCount === defs.length && cb()
-
-  for (const [emitter, event, count] of defs) {
-    let i = 0
-    const check = () => {
-      if (++i === count) {
-        emitter.removeListener(event, check)
-        checkComplete()
-      }
-    }
-    emitter.on(event, check)
-  }
-}

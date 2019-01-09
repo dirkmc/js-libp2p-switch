@@ -74,3 +74,30 @@ exports.doneAfter = (n, willFinish, done) => {
     }
   }
 }
+
+/**
+ * Wait for events to be invoked a specific number of times, then call callback
+ * eg
+ * awaitEvents([
+ *   [switchA, 'peer-mux-established', 2],
+ *   [switchB, 'peer-mux-established', 2]
+ * ], () => console.log('complete'))
+ *
+ * @param {Array} defs An array of [<EventEmitter>, <event name>, count]
+ * @param {Function} cb the callback
+ */
+exports.awaitEvents = (defs, cb) => {
+  let completeCount = 0
+  const checkComplete = () => ++completeCount === defs.length && cb()
+
+  for (const [emitter, event, count = 1] of defs) {
+    let i = 0
+    const check = () => {
+      if (++i === count) {
+        emitter.removeListener(event, check)
+        checkComplete()
+      }
+    }
+    emitter.on(event, check)
+  }
+}
